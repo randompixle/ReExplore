@@ -44,6 +44,5 @@ endif()
 
 if (CURL_FOUND)
   target_link_libraries(ReExploreXP ${CURL_LIBRARIES})
-else()
-  target_link_libraries(ReExploreXP curl)
+  target_compile_definitions(ReExploreXP PRIVATE RE_HAVE_CURL=1)
 endif()

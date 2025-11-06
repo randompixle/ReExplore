@@ -1,5 +1,4 @@
 #include "net.h"
-#include <curl/curl.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -30,6 +29,16 @@ int re_http_get(const char* url, ReBuffer* out) {
   curl_easy_cleanup(c);
   return (rc == CURLE_OK) ? 0 : -2;
 }
+#else
+#include <stdio.h>
+
+int re_http_get(const char* url, ReBuffer* out) {
+  (void)url;
+  memset(out, 0, sizeof(*out));
+  fprintf(stderr, "ReExploreXP built without libcurl; network requests disabled.\n");
+  return -1;
+}
+#endif
 
 void re_buffer_free(ReBuffer* b) { if (b && b->data) free(b->data); if (b) b->data=NULL,b->size=0; }
 
