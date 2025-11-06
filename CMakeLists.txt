@@ -7,6 +7,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
 
 find_package(PkgConfig QUIET)
+option(RE_REQUIRE_NATIVE "Require native SDL2/libcurl backends" OFF)
 if (PkgConfig_FOUND)
   pkg_check_modules(SDL2 QUIET sdl2)
   pkg_check_modules(CURL QUIET libcurl)
@@ -24,6 +25,15 @@ if (CURL_FOUND)
   link_directories(${CURL_LIBRARY_DIRS})
 else()
   message(WARNING "pkg-config curl not found; using fallback")
+endif()
+
+if (RE_REQUIRE_NATIVE)
+  if (NOT SDL2_FOUND)
+    message(FATAL_ERROR "SDL2 development libraries are required. Please install libsdl2-dev / SDL2-devel.")
+  endif()
+  if (NOT CURL_FOUND)
+    message(FATAL_ERROR "libcurl development libraries are required. Please install libcurl-dev / libcurl-devel.")
+  endif()
 endif()
 
 add_executable(ReExploreXP
