@@ -2,9 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef RE_HAVE_CURL
-#include <curl/curl.h>
-
 static size_t write_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
   size_t add = size * nmemb;
   ReBuffer* b = (ReBuffer*)userdata;
