@@ -1,0 +1,49 @@
+cmake_minimum_required(VERSION 3.10)
+project(ReExploreXP C)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/third_party)
+
+find_package(PkgConfig QUIET)
+if (PkgConfig_FOUND)
+  pkg_check_modules(SDL2 QUIET sdl2)
+  pkg_check_modules(CURL QUIET libcurl)
+endif()
+
+if (SDL2_FOUND)
+  include_directories(${SDL2_INCLUDE_DIRS})
+  link_directories(${SDL2_LIBRARY_DIRS})
+else()
+  message(WARNING "pkg-config SDL2 not found; using fallback")
+  include_directories(/usr/include/SDL2)
+endif()
+
+if (CURL_FOUND)
+  include_directories(${CURL_INCLUDE_DIRS})
+  link_directories(${CURL_LIBRARY_DIRS})
+else()
+  message(WARNING "pkg-config curl not found; using fallback")
+endif()
+
+add_executable(ReExploreXP
+        src/main.c
+        src/render.c
+        src/html.c
+        src/net.c
+        src/font.c
+        src/stb_impl.c
+)
+
+if (SDL2_FOUND)
+  target_link_libraries(ReExploreXP ${SDL2_LIBRARIES})
+else()
+  target_link_libraries(ReExploreXP SDL2)
+endif()
+
+if (CURL_FOUND)
+  target_link_libraries(ReExploreXP ${CURL_LIBRARIES})
+else()
+  target_link_libraries(ReExploreXP curl)
+endif()

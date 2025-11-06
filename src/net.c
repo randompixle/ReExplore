@@ -1,0 +1,48 @@
+#include "net.h"
+#include <curl/curl.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_ONLY_GIF
+#include "../third_party/stb_image.h"
+
+static size_t write_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
+  size_t add = size * nmemb;
+  ReBuffer* b = (ReBuffer*)userdata;
+  unsigned char* nd = (unsigned char*)realloc(b->data, b->size + add + 1);
+  if (!nd) return 0;
+  b->data = nd;
+  memcpy(b->data + b->size, ptr, add);
+  b->size += add;
+  b->data[b->size] = 0;
+  return add;
+}
+
+int re_http_get(const char* url, ReBuffer* out) {
+  memset(out, 0, sizeof(*out));
+  CURL* c = curl_easy_init();
+  if (!c) return -1;
+  curl_easy_setopt(c, CURLOPT_URL, url);
+  curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(c, CURLOPT_USERAGENT, "ReExploreXP/0.5");
+  curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, write_cb);
+  curl_easy_setopt(c, CURLOPT_WRITEDATA, out);
+  curl_easy_setopt(c, CURLOPT_SSL_VERIFYPEER, 0L);
+  curl_easy_setopt(c, CURLOPT_SSL_VERIFYHOST, 0L);
+  CURLcode rc = curl_easy_perform(c);
+  curl_easy_cleanup(c);
+  return (rc == CURLE_OK) ? 0 : -2;
+}
+
+void re_buffer_free(ReBuffer* b) { if (b && b->data) free(b->data); if (b) b->data=NULL,b->size=0; }
+
+unsigned char* re_image_decode_rgba(const unsigned char* bytes, int len, int* out_w, int* out_h) {
+  int w=0,h=0,comp=0;
+  unsigned char* rgba = stbi_load_from_memory(bytes, len, &w, &h, &comp, 4);
+  if (!rgba) return NULL;
+  if (out_w) *out_w = w; if (out_h) *out_h = h;
+  return rgba;
+}
