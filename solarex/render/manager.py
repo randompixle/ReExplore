@@ -557,8 +557,22 @@ class SolarRenBackend:
                 return f"[{summary}]"
 
             def _control_html(self, info: Dict[str, str]) -> str:
-                summary = escape(self._control_summary(info))
-                return f'<div class="solarren-control">[{summary}]</div>'
+                kind = info.get("kind", "control")
+                heading_parts: list[str] = []
+                if kind == "input":
+                    heading_parts.append("Input")
+                    ctrl_type = info.get("type") or "text"
+                    if ctrl_type and ctrl_type != "text":
+                        heading_parts.append(f"({escape(ctrl_type)})")
+                elif kind == "textarea":
+                    heading_parts.append("Textarea")
+                elif kind == "button":
+                    heading_parts.append("Button")
+                    btn_type = info.get("type") or "button"
+                    if btn_type and btn_type != "button":
+                        heading_parts.append(f"({escape(btn_type)})")
+                else:
+                    heading_parts.append(escape(kind.title()))
 
             def feed(self, html: str):
                 self._parser.feed(html)
@@ -875,12 +889,93 @@ class SolarRenBackend:
 
                     .solarren-control {{
                         margin: 8px 0;
-                        padding: 8px 10px;
+                        padding: 10px 12px;
                         border: 1px solid {qcolor_to_css(muted)};
-                        border-radius: 6px;
+                        border-radius: 8px;
                         font-size: 12px;
                         font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
-                        background-color: {qcolor_to_css(base.lighter(110))};
+                        background-color: {qcolor_to_css(base.lighter(112))};
+                        display: flex;
+                        flex-direction: column;
+                        gap: 6px;
+                    }}
+
+                    .solarren-control-title {{
+                        font-weight: 600;
+                        font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+                        letter-spacing: 0.02em;
+                    }}
+
+                    .solarren-control-meta {{
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }}
+
+                    .solarren-control-row {{
+                        display: flex;
+                        gap: 6px;
+                        flex-wrap: wrap;
+                        align-items: baseline;
+                    }}
+
+                    .solarren-control-key {{
+                        font-size: 10px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.08em;
+                        color: {qcolor_to_css(muted)};
+                    }}
+
+                    .solarren-control-value {{
+                        font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
+                    }}
+
+                    .solarren-image {{
+                        margin: 16px 0;
+                        padding: 12px;
+                        border: 1px solid {qcolor_to_css(muted)};
+                        border-radius: 10px;
+                        background-color: {qcolor_to_css(base.lighter(108))};
+                        text-align: center;
+                    }}
+
+                    .solarren-image img {{
+                        max-width: 100%;
+                        border-radius: 8px;
+                    }}
+
+                    .solarren-image figcaption {{
+                        margin-top: 8px;
+                        font-size: 12px;
+                        color: {qcolor_to_css(muted)};
+                    }}
+
+                    .solarren-download {{
+                        margin-top: 10px;
+                    }}
+
+                    .solarren-download-link {{
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 6px 12px;
+                        border-radius: 6px;
+                        border: 1px solid {qcolor_to_css(muted)};
+                        background-color: {qcolor_to_css(base.lighter(120))};
+                        color: {qcolor_to_css(text)};
+                        text-decoration: none;
+                        font-size: 12px;
+                        transition: background-color 0.2s ease;
+                    }}
+
+                    .solarren-download-link::before {{
+                        content: "\2193";
+                        font-size: 14px;
+                    }}
+
+                    .solarren-download-link:hover {{
+                        background-color: {qcolor_to_css(base.lighter(140))};
                     }}
 
                     .solarren-image {{
