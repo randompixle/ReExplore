@@ -7,6 +7,7 @@ network stack, and an extensible plugin system.
 ## Features
 
 - **Modular core** – runtime module loader with dependency registry.
+- **Multiple renderers** – choose between the Qt WebEngine backend, the SolarRen Python renderer with clickable text rendering and form control summaries, or a lightweight fallback.
 - **Multiple renderers** – choose between the Qt WebEngine backend, the SolarRen Python renderer, or a lightweight fallback.
 - **Profile management** – per-profile cache & storage directories with optional incognito isolation.
 - **Plugin framework** – drop plugins inside `solarex/Plugins/` or `~/.config/SolarEx/plugins` and have
@@ -40,6 +41,9 @@ python solarx.py --mode classic --home https://www.google.com/
 Useful flags:
 
 - `--mode {classic,pov}` – choose between the tabbed classic window or a borderless POV window.
+- `--renderer {qtweb,solarren,minimal}` – switch render backends. `solarren` uses a pure Python fetcher
+  to render a simplified, link-aware text view, while `minimal` uses `QTextBrowser` for environments without
+  QtWebEngine support.
 - `--renderer {qtweb,minimal}` – switch render backends. `minimal` uses `QTextBrowser` for environments
   without QtWebEngine support.
 - `--incognito` – start with an in-memory profile that avoids writing to disk.
