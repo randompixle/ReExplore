@@ -8,6 +8,10 @@ import urllib.error
 import urllib.request
 from html import escape, unescape
 from urllib.parse import urljoin
+import threading
+import urllib.error
+import urllib.request
+from html import unescape
 
 @dataclass
 class BackendEntry:
@@ -155,6 +159,11 @@ class SolarRenBackend:
                     LIST_TAGS = {"ul", "ol"}
 
                     def __init__(self, outer: "TextExtractor"):
+            def __init__(self):
+                from html.parser import HTMLParser
+
+                class _Parser(HTMLParser):
+                    def __init__(self, outer):
                         super().__init__()
                         self.outer = outer
                         self._ignore_stack: list[str] = []
@@ -229,6 +238,8 @@ class SolarRenBackend:
                             resolved = urljoin(self.outer.base_url, href) if href else ""
                             self.outer._anchor_stack.append(resolved)
                             return
+                        elif not self._ignore_stack and tag in ("br", "p", "div", "li", "section", "article", "tr", "h1", "h2", "h3", "h4", "h5", "h6"):
+                            self.outer._chunks.append("\n")
 
                     def handle_endtag(self, tag):
                         tag = tag.lower()
@@ -487,6 +498,19 @@ class SolarRenBackend:
                 summary = escape(self._control_summary(info))
                 return f'<div class="solarren-control">[{summary}]</div>'
 
+                        elif not self._ignore_stack and tag in ("p", "div", "li", "section", "article", "tr"):
+                            self.outer._chunks.append("\n")
+
+                    def handle_data(self, data):
+                        if self._ignore_stack:
+                            return
+                        text = unescape(data)
+                        if text.strip():
+                            self.outer._chunks.append(text.strip())
+
+                self._chunks: list[str] = []
+                self._parser = _Parser(self)
+
             def feed(self, html: str):
                 self._parser.feed(html)
 
@@ -631,6 +655,12 @@ class SolarRenBackend:
                 html_output = "".join(parts)
                 html_output = re.sub(r"(<br/>\s*){3,}", "<br/><br/>", html_output)
                 return html_output
+                body = " ".join(self._chunks)
+                body = re.sub(r"\s+\n", "\n", body)
+                body = re.sub(r"\n\s+", "\n", body)
+                body = re.sub(r"\n{3,}", "\n\n", body)
+                body = re.sub(r"\s{2,}", " ", body)
+                return body.strip()
 
         class SolarRenView(QtWidgets.QWidget):
             titleChanged = QtCore.pyqtSignal(str)
@@ -654,6 +684,9 @@ class SolarRenBackend:
                 self._viewer.anchorClicked.connect(self.load)
                 self._viewer.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
                 self._viewer.setAcceptRichText(True)
+                self._viewer = QtWidgets.QPlainTextEdit()
+                self._viewer.setReadOnly(True)
+                self._viewer.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.WidgetWidth)
                 layout.addWidget(self._status)
                 layout.addWidget(self._viewer, 1)
 
@@ -759,6 +792,13 @@ class SolarRenBackend:
                     "</div></body></html>"
                 )
 
+            def _apply_content(self, url_str: str, title: str, text: str, success: bool):
+                self._url = QtCore.QUrl(url_str)
+                self._status.setText(f"SolarRen → {url_str}")
+                self._viewer.setPlainText(text)
+                self.titleChanged.emit(title)
+                self.loadFinished.emit(success)
+
             def load(self, url):
                 if isinstance(url, QtCore.QUrl):
                     qurl = QtCore.QUrl(url)
@@ -776,6 +816,11 @@ class SolarRenBackend:
                 loading_html = "<div class=\"solarren-document\">Loading…</div>"
                 self._viewer.document().setBaseUrl(qurl)
                 self._viewer.setHtml(self._wrap_document(qurl.toString(), "Loading…", loading_html))
+                    self._contentReady.emit(qurl.toString(), "about:blank", "SolarRen ready.", True)
+                    return
+
+                self._status.setText(f"Loading {qurl.toString()} …")
+                self._viewer.setPlainText("")
                 self.loadFinished.emit(False)
 
                 def worker(target_url: QtCore.QUrl):
@@ -815,6 +860,27 @@ class SolarRenBackend:
                             "</div>"
                         )
                         self._contentReady.emit(url_str, url_str, error_html, False)
+                        extractor = TextExtractor()
+                        extractor.feed(html_text)
+                        body = extractor.get_text() or "[No textual content rendered]"
+
+                        header = page_title + "\n" + ("=" * len(page_title)) + "\n\n"
+                        display_text = header + body
+                        self._contentReady.emit(url_str, page_title, display_text, True)
+                    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
+                        self._contentReady.emit(
+                            url_str,
+                            url_str,
+                            f"SolarRen failed to load {url_str}:\n{exc}",
+                            False,
+                        )
+                    except Exception as exc:
+                        self._contentReady.emit(
+                            url_str,
+                            url_str,
+                            f"SolarRen failed to load {url_str}:\n{exc}",
+                            False,
+                        )
 
                 self._thread = threading.Thread(target=worker, args=(qurl,), daemon=True)
                 self._thread.start()
