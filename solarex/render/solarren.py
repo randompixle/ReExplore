@@ -6,7 +6,7 @@ import urllib.request
 from html import escape, unescape
 from html.parser import HTMLParser
 from typing import Dict, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 
 class SolarRenExtractor(HTMLParser):
@@ -599,15 +599,37 @@ class SolarRenBackend:
                         f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alpha()/255:.3f})"
                     )
 
+                parsed_url = urlparse(url_str)
+                protocol_display = f"{parsed_url.scheme}://" if parsed_url.scheme else ""
+                host_display = parsed_url.hostname or parsed_url.netloc or ""
+                path_display = parsed_url.path or ""
+                if parsed_url.params:
+                    path_display += f";{parsed_url.params}"
+                if parsed_url.query:
+                    path_display += f"?{parsed_url.query}"
+                if parsed_url.fragment:
+                    path_display += f"#{parsed_url.fragment}"
+
+                if not host_display:
+                    if protocol_display:
+                        host_display = parsed_url.path or parsed_url.netloc or url_str
+                        path_display = ""
+                    else:
+                        host_display = url_str
+                        path_display = ""
+                        protocol_display = ""
+
                 stylesheet = textwrap.dedent(
                     f"""
                     body {{
-                        background-color: {qcolor_to_css(base)};
+                        background: linear-gradient(180deg, {qcolor_to_css(base.lighter(108))} 0%, {qcolor_to_css(base)} 45%, {qcolor_to_css(base.darker(108))} 100%);
                         color: {qcolor_to_css(text)};
                         font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
                         font-size: 14px;
                         margin: 0;
-                        padding: 0;
+                        padding: 24px;
+                        display: flex;
+                        justify-content: center;
                     }}
 
                     a {{
@@ -615,45 +637,161 @@ class SolarRenBackend:
                     }}
 
                     .solarren-wrapper {{
-                        padding: 12px 16px;
+                        width: 100%;
+                        max-width: 960px;
+                    }}
+
+                    .solarren-toolbar {{
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        background: {qcolor_to_css(base.lighter(112))};
+                        border: 1px solid {qcolor_to_css(muted)};
+                        border-radius: 10px;
+                        padding: 10px 12px;
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+                        margin-bottom: 18px;
+                    }}
+
+                    .solarren-location {{
+                        flex: 1;
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
+                        font-size: 12px;
+                        padding: 6px 10px;
+                        border-radius: 6px;
+                        background: {qcolor_to_css(base.lighter(120))};
+                        border: 1px solid {qcolor_to_css(muted)};
+                        overflow: hidden;
+                        white-space: nowrap;
+                        text-overflow: ellipsis;
+                    }}
+
+                    .solarren-location span {{
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }}
+
+                    .solarren-location-protocol {{
+                        opacity: 0.6;
+                    }}
+
+                    .solarren-location-host {{
+                        font-weight: 600;
+                    }}
+
+                    .solarren-location-path {{
+                        opacity: 0.75;
+                    }}
+
+                    .solarren-open {{
+                        text-decoration: none;
+                        font-size: 12px;
+                        font-weight: 600;
+                        padding: 8px 14px;
+                        border-radius: 6px;
+                        border: 1px solid {qcolor_to_css(link)};
+                        color: {qcolor_to_css(link)};
+                        background: {qcolor_to_css(base)};
+                        transition: background 0.2s ease, color 0.2s ease;
+                    }}
+
+                    .solarren-open:hover {{
+                        background: {qcolor_to_css(link)};
+                        color: {qcolor_to_css(base)};
+                    }}
+
+                    .solarren-surface {{
+                        background: {qcolor_to_css(base.lighter(106))};
+                        border: 1px solid {qcolor_to_css(muted)};
+                        border-radius: 12px;
+                        padding: 20px 24px 28px;
+                        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
                     }}
 
                     .solarren-header {{
-                        margin-bottom: 12px;
+                        margin-bottom: 16px;
                     }}
 
                     .solarren-header h1 {{
-                        font-size: 20px;
-                        margin: 0;
+                        font-size: 22px;
+                        margin: 0 0 6px 0;
                         font-weight: 600;
                     }}
 
                     .solarren-url {{
                         font-size: 12px;
                         color: {qcolor_to_css(muted)};
+                        word-break: break-word;
+                    }}
+
+                    .solarren-content {{
+                        border-top: 1px solid {qcolor_to_css(muted)};
+                        padding-top: 18px;
                     }}
 
                     .solarren-document {{
                         white-space: pre-wrap;
-                        line-height: 1.55;
+                        line-height: 1.6;
                         font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
                         font-size: 13px;
                     }}
 
+                    .solarren-document pre {{
+                        background: {qcolor_to_css(base.lighter(110))};
+                        border: 1px solid {qcolor_to_css(muted)};
+                        border-radius: 6px;
+                        padding: 10px 12px;
+                        overflow-x: auto;
+                    }}
+
+                    .solarren-document hr {{
+                        border: none;
+                        border-top: 1px dashed {qcolor_to_css(muted)};
+                        margin: 16px 0;
+                    }}
+
+                    .solarren-document a {{
+                        color: {qcolor_to_css(link)};
+                        text-decoration: underline;
+                        font-weight: 500;
+                    }}
+
                     .solarren-control {{
-                        margin: 8px 0;
-                        padding: 8px 10px;
+                        margin: 10px 0;
+                        padding: 10px 12px;
                         border: 1px solid {qcolor_to_css(muted)};
                         border-radius: 6px;
                         font-size: 12px;
                         font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
-                        background-color: {qcolor_to_css(base.lighter(110))};
+                        background-color: {qcolor_to_css(base.lighter(112))};
                     }}
                     """
                 ).strip()
 
-                safe_title = escape(title or url_str)
+                safe_protocol = escape(protocol_display)
+                safe_host = escape(host_display)
+                safe_path = escape(path_display)
                 safe_url = escape(url_str)
+
+                location_html = (
+                    "<div class=\"solarren-location\">"
+                    f"<span class=\"solarren-location-protocol\">{safe_protocol}</span>"
+                    f"<span class=\"solarren-location-host\">{safe_host}</span>"
+                    f"<span class=\"solarren-location-path\">{safe_path}</span>"
+                    "</div>"
+                )
+
+                toolbar_html = (
+                    "<div class=\"solarren-toolbar\">"
+                    f"{location_html}"
+                    f"<a class=\"solarren-open\" href=\"{safe_url}\" target=\"_blank\" rel=\"noreferrer noopener\">Open original</a>"
+                    "</div>"
+                )
+
+                safe_title = escape(title or url_str)
                 header_html = (
                     "<div class=\"solarren-header\">"
                     f"<h1>{safe_title}</h1>"
@@ -666,12 +804,18 @@ class SolarRenBackend:
                     or "<div class=\"solarren-document\">[No textual content rendered]</div>"
                 )
 
+                surface_html = (
+                    "<div class=\"solarren-surface\">"
+                    f"{header_html}<div class=\"solarren-content\">{body_section}</div>"
+                    "</div>"
+                )
+
                 return (
                     "<html><head><meta charset=\"utf-8\"/>"
                     f"<style>{stylesheet}</style>"
                     "</head><body>"
                     "<div class=\"solarren-wrapper\">"
-                    f"{header_html}{body_section}"
+                    f"{toolbar_html}{surface_html}"
                     "</div></body></html>"
                 )
 
