@@ -1,6 +1,7 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from bs4 import BeautifulSoup
-import httpx, os, base64, urllib.parse, re
+from html import escape
+import httpx, os, base64, urllib.parse, re, textwrap
 
 metadata = {
     "id": "solarren",
@@ -50,16 +51,20 @@ def _inject_supported_styles(tag, style_dict):
 
 # ---------------- async fetcher ----------------
 
+DEFAULT_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) SolarEx/4.2"
+
+
 class FetchWorker(QtCore.QThread):
     chunk = QtCore.pyqtSignal(int)          # percent
     done  = QtCore.pyqtSignal(str, str)     # html, url
     error = QtCore.pyqtSignal(str)
 
-    def __init__(self, url, backend, timeout=20.0):
+    def __init__(self, url, backend, timeout=20.0, user_agent: str | None = None):
         super().__init__()
         self.url = url
         self.backend = backend
         self.timeout = timeout
+        self.user_agent = user_agent or DEFAULT_USER_AGENT
 
     def run(self):
         try:
@@ -72,7 +77,11 @@ class FetchWorker(QtCore.QThread):
                 html = getattr(resp, "text", None) or resp.content.decode("utf-8", "ignore")
                 self.done.emit(html, self.url); return
 
-            client = httpx.Client(follow_redirects=True, timeout=self.timeout)
+            client = httpx.Client(
+                follow_redirects=True,
+                timeout=self.timeout,
+                headers={"User-Agent": self.user_agent},
+            )
             r = client.stream("GET", self.url)
             total = int(r.headers.get("content-length") or 0)
             buf = bytearray()
@@ -107,10 +116,16 @@ class SolarRenView(QtWidgets.QScrollArea):
         self.core = core
         self.setWidgetResizable(True)
 
+        self.user_agent = getattr(getattr(core, "args", None), "ua", None) or DEFAULT_USER_AGENT
+
         self.canvas = QtWidgets.QTextBrowser()
         self.setWidget(self.canvas)
 
-        self.client = httpx.Client(follow_redirects=True, timeout=20.0)
+        self.client = httpx.Client(
+            follow_redirects=True,
+            timeout=20.0,
+            headers={"User-Agent": self.user_agent},
+        )
         self.cache_dir = os.path.join(core.profile.storage_path, "cache", "images")
         os.makedirs(self.cache_dir, exist_ok=True)
 
@@ -286,7 +301,7 @@ class SolarRenView(QtWidgets.QScrollArea):
         self._show_status(f"Loading {url}")
 
         backend = getattr(self.core, "net", None) or self.core.require("net")
-        self._worker = FetchWorker(url, backend)
+        self._worker = FetchWorker(url, backend, user_agent=self.user_agent)
         self._worker.chunk.connect(lambda p: self._show_status(f"Downloading… {p}%"))
         self._worker.done.connect(lambda html, u: self._render(u, html))
         self._worker.error.connect(lambda msg: self.canvas.setPlainText(f"[SolarRen] fetch failed: {msg}"))
@@ -327,18 +342,157 @@ class SolarRenView(QtWidgets.QScrollArea):
 
         # Theme
         dark = self.core.settings.get_ns("renderer.solarren", "dark", True)
-        css = (
-            "<style>"
-            "body{background:#111;color:#ccc;font-family:sans-serif;}"
-            "a{color:#6af;text-decoration:none;} a:hover{color:#9df;text-decoration:underline;}"
-            "table{border-collapse:collapse;} img{max-width:100%;}"
-            "input,textarea{background:#222;color:#ddd;border:1px solid #555;padding:2px 4px;}"
-            "</style>"
-            if dark else ""
+        bg = "#0f111a" if dark else "#f5f6fa"
+        fg = "#d5d9e2" if dark else "#1f2530"
+        accent = "#4fa3ff" if dark else "#0a59c9"
+        muted = "#5a6074" if dark else "#6f778b"
+
+        stylesheet = textwrap.dedent(
+            f"""
+            :root {{ color-scheme: {'dark' if dark else 'light'}; }}
+            body {{
+                margin: 0;
+                padding: 32px;
+                background: radial-gradient(circle at top, {bg} 0%, {bg} 45%, {('#05060a' if dark else '#e4e7ef')} 100%);
+                color: {fg};
+                font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+                display: flex;
+                justify-content: center;
+            }}
+            a {{ color: {accent}; }}
+            a:hover {{ color: {accent}; text-decoration: underline; }}
+            .solarren-wrapper {{ width: 100%; max-width: 960px; }}
+            .solarren-toolbar {{
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 16px;
+                border-radius: 12px;
+                background: {('#161a2b' if dark else '#ffffff')};
+                border: 1px solid {muted};
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+                margin-bottom: 20px;
+            }}
+            .solarren-location {{
+                flex: 1;
+                font-family: 'JetBrains Mono', 'Fira Code', monospace;
+                font-size: 12px;
+                display: flex;
+                gap: 4px;
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }}
+            .solarren-location span {{ overflow: hidden; text-overflow: ellipsis; }}
+            .solarren-location-protocol {{ opacity: 0.6; }}
+            .solarren-location-host {{ font-weight: 600; }}
+            .solarren-location-path {{ opacity: 0.7; }}
+            .solarren-open {{
+                padding: 8px 14px;
+                border-radius: 8px;
+                border: 1px solid {accent};
+                text-decoration: none;
+                color: {accent};
+            }}
+            .solarren-open:hover {{ background: {accent}; color: {bg}; }}
+            .solarren-surface {{
+                background: {('#161a2b' if dark else '#ffffff')};
+                border-radius: 16px;
+                border: 1px solid {muted};
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+                padding: 28px;
+            }}
+            .solarren-header h1 {{ margin: 0 0 6px 0; font-size: 22px; }}
+            .solarren-url {{ font-size: 12px; color: {muted}; }}
+            .solarren-content {{ margin-top: 20px; }}
+            .solarren-document {{
+                line-height: 1.65;
+                font-size: 14px;
+            }}
+            .solarren-document pre {{
+                background: {('#0f1220' if dark else '#f1f3f8')};
+                border-radius: 8px;
+                padding: 12px;
+                overflow-x: auto;
+            }}
+            .solarren-document img {{ max-width: 100%; height: auto; }}
+            .solarren-document table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0;
+            }}
+            .solarren-document th,
+            .solarren-document td {{
+                border: 1px solid {muted};
+                padding: 6px 8px;
+            }}
+            .solarren-control {{
+                margin: 12px 0;
+                padding: 12px;
+                border-radius: 8px;
+                border: 1px dashed {muted};
+                font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            }}
+            """
+        ).strip()
+
+        parsed = urllib.parse.urlparse(base_url)
+        protocol_display = f"{parsed.scheme}://" if parsed.scheme else ""
+        host_display = parsed.hostname or parsed.netloc or base_url
+        path_parts = parsed.path or ""
+        if parsed.params:
+            path_parts += f";{parsed.params}"
+        if parsed.query:
+            path_parts += f"?{parsed.query}"
+        if parsed.fragment:
+            path_parts += f"#{parsed.fragment}"
+
+        safe_protocol = escape(protocol_display)
+        safe_host = escape(host_display)
+        safe_path = escape(path_parts)
+        safe_url = escape(base_url)
+        safe_title = escape(title)
+
+        location_html = (
+            "<div class=\"solarren-location\">"
+            f"<span class=\"solarren-location-protocol\">{safe_protocol}</span>"
+            f"<span class=\"solarren-location-host\">{safe_host}</span>"
+            f"<span class=\"solarren-location-path\">{safe_path}</span>"
+            "</div>"
+        )
+        toolbar_html = (
+            "<div class=\"solarren-toolbar\">"
+            f"{location_html}"
+            f"<a class=\"solarren-open\" href=\"{safe_url}\" target=\"_blank\">Open original</a>"
+            "</div>"
         )
 
-        body = soup.body or soup
-        self.canvas.setHtml(css + str(body))
+        header_html = (
+            "<div class=\"solarren-header\">"
+            f"<h1>{safe_title}</h1>"
+            f"<div class=\"solarren-url\">{safe_url}</div>"
+            "</div>"
+        )
+
+        body_node = soup.body or soup
+        if getattr(body_node, "name", "").lower() == "body":
+            body_fragment = "".join(str(child) for child in body_node.children)
+        else:
+            body_fragment = str(body_node)
+
+        document_html = f'<div class="solarren-document">{body_fragment}</div>'
+
+        html_output = (
+            "<html><head><meta charset=\"utf-8\"/>"
+            f"<style>{stylesheet}</style>"
+            "</head><body>"
+            "<div class=\"solarren-wrapper\">"
+            f"{toolbar_html}<div class=\"solarren-surface\">{header_html}<div class=\"solarren-content\">{document_html}</div></div>"
+            "</div>"
+            "</body></html>"
+        )
+
+        self.canvas.setHtml(html_output)
         self.canvas.document().setBaseUrl(QtCore.QUrl(base_url))
         self._last_soup = soup
         self._show_status("Done")
