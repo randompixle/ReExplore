@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
 from PyQt6 import QtCore
+
 # Must be set BEFORE QApplication is created or any QtWebEngine import occurs
 QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 
 import argparse
 import sys
 from PyQt6 import QtWidgets
+
+# ✅ Preload QtWebEngine so QtWebEngineCore is initialized globally
+try:
+    from PyQt6 import QtWebEngineCore, QtWebEngineWidgets
+    QtWebEngineCore.QWebEngine.initialize() if hasattr(QtWebEngineCore, "QWebEngine") else None
+except Exception:
+    # Fallback — will still work if QtWebEngine is lazy-loaded later
+    pass
+
 from solarex.core.modules import SolarCore
 
 
@@ -24,34 +34,34 @@ def main():
     )
     args = ap.parse_args()
 
+    # === Core boot ===
     core = SolarCore()
     core.args = args
     core.boot()
     core.set_profile(name=args.profile, incognito=args.incognito)
 
-    # Load core modules
+    # === Load core modules ===
     core.load("solarex.net")
     core.load("solarex.net.httpx_backend", as_name="net")
     core.load("solarex.render.manager", as_name="render")
     core.render.set_active(args.renderer)
 
-    # Choose UI mode
+    # === Load UI ===
+    core.load("solarex.ui", as_name="ui")
     if args.mode == "classic":
-        core.load("solarex.ui", as_name="ui")
         core.load("solarex.ui.classic", as_name="ui")
     else:
-        core.load("solarex.ui", as_name="ui")
         core.load("solarex.ui.pov", as_name="ui")
 
-    # Load built-in and user plugins after core is ready
+    # === Load plugins ===
     core.plugin_manager.load_all(core)
 
-    # Create app AFTER loading QtWebEngine-compatible modules
+    # === Create QApplication ===
     app = QtWidgets.QApplication(sys.argv)
     if hasattr(QtCore.Qt.ApplicationAttribute, "AA_UseHighDpiPixmaps"):
         app.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
 
-    # Launch the window
+    # === Launch UI window ===
     win_cls = core.ui
     try:
         win = win_cls(core, start_url=args.home)
@@ -59,8 +69,6 @@ def main():
         win = win_cls(core, args.home)
 
     win.show()
-
-    # Notify plugins the window is ready
     core.emit_window_created(win)
 
     sys.exit(app.exec())

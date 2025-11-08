@@ -1,7 +1,7 @@
 def init(core):
-    def on_win(win):
+    def on_window(win):
         menu = core.ui_api.add_menu(win, "Help")
         core.ui_api.add_menu_item(menu, "About SolarEx", lambda: core.ui_api.show_message(
-            "SolarEx Dev Edition v1.2\nModular renderers + persistent settings/cookies."
+            "SolarEx Browser\nVersion 1.0 Dev Edition\nBuilt on PyQt6\n(c) 2025 Solar Labs"
         ))
-    core.on_window_created(on_win)
+    core.on_window_created(on_window)
